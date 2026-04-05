@@ -347,7 +347,9 @@ private:
             ROS_ERROR("[MPCctrl] Numerical error!");
         }
         
-        if(state_.mode == mavros_msgs::State::MODE_PX4_OFFBOARD && state_.armed == true)
+        if(state_.mode == mavros_msgs::State::MODE_PX4_OFFBOARD &&
+           state_.armed == true &&
+           param_.enable_thrust_adaptation)
         {
             ommpc_controller_.estimateThrustModel(imu_data_.a);
         }
@@ -439,13 +441,13 @@ public:
     void init(ros::NodeHandle &nh){
         enu_frame_ = true;
         // for real world flight, vel_in_body should be set to false!
-        vel_in_body_ = true;
+        vel_in_body_ = false;
         exec_traj_state_ = HOVER;
 
         cmd_pub_ = nh.advertise<mavros_msgs::AttitudeTarget>("/mavros/setpoint_raw/attitude", 10);
         set_mode_client_ = nh.serviceClient<mavros_msgs::SetMode>("mavros/set_mode");
         arming_client_srv_ = nh.serviceClient<mavros_msgs::CommandBool>("/mavros/cmd/arming");
-        odom_sub_ = nh.subscribe<nav_msgs::Odometry>("/mavros/local_position/odom", 10, &OMMPC_EXAMPLE::OdomCallback, this);
+        odom_sub_ = nh.subscribe<nav_msgs::Odometry>("/some_object_name_vrpn_client/estimated_odometry", 10, &OMMPC_EXAMPLE::OdomCallback, this);
         imu_sub_ = nh.subscribe<sensor_msgs::Imu>("/mavros/imu/data", 10, &OMMPC_EXAMPLE::IMUCallback, this);
         state_sub_ = nh.subscribe<mavros_msgs::State>("/mavros/state", 10, &OMMPC_EXAMPLE::StateCallback, this);
         mpc_traj_sub_ = nh.subscribe<traj_utils::PolyTraj>("/drone_0_planning/trajectory",
@@ -489,6 +491,7 @@ public:
         read_essential_param(nh, "MPC_params/step_T", param_.step_T);
         read_essential_param(nh, "use_fix_yaw", param_.use_fix_yaw);
         read_essential_param(nh, "use_trajectory_ending_pos", param_.use_trajectory_ending_pos);
+        nh.param("enable_thrust_adaptation", param_.enable_thrust_adaptation, true);
 
         if (param_.use_ref_txt){
             std::cout << "Ref trajectory enabled!" << std::endl;

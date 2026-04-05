@@ -2,15 +2,16 @@ takeoff_height: 0.8
 takeoff_land_speed: 0.2
 
 ref_txt:
-    enable: true
+    enable: false
     time_step: 0.01
     ref_filename: "/traj/circle.txt"
 
 hover_percentage: 0.705
 
 # NMPC
-use_fix_yaw: true
+use_fix_yaw: false
 use_trajectory_ending_pos: true
+enable_thrust_adaptation: false
 
 MPC_params:
     step_T: 0.01

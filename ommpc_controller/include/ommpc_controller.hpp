@@ -681,6 +681,7 @@ struct Parameter_t
   bool use_ref_txt; 
 	std::string ref_filename;
 	double ref_time_step;
+  bool enable_thrust_adaptation;
 
   double takeoff_land_speed, takeoff_height;
 };
