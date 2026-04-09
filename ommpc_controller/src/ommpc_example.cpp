@@ -3,6 +3,7 @@
 #include <mavros_msgs/SetMode.h>
 #include <mavros_msgs/CommandBool.h>
 #include <mavros_msgs/AttitudeTarget.h>
+#include <std_msgs/Float64.h>
 #include <dynamic_reconfigure/server.h>
 
 #include "ommpc_controller.hpp"
@@ -24,7 +25,7 @@ class OMMPC_EXAMPLE{
 private:
     ros::NodeHandle node_;
     ros::Publisher cmd_pub_;
-    ros::Subscriber odom_sub_, imu_sub_, state_sub_, mpc_traj_sub_;
+    ros::Subscriber odom_sub_, imu_sub_, state_sub_, mpc_traj_sub_, hover_yaw_sub_;
     ros::ServiceClient set_mode_client_, arming_client_srv_;
     ros::Timer exec_timer_, read_file_timer_;
     mavros_msgs::State state_;
@@ -97,6 +98,14 @@ private:
 
     double get_yaw_from_quaternion(const Eigen::Quaterniond& q) {
         return atan2(2 * (q.w() * q.z() + q.x() * q.y()), 1 - 2 * (q.y() * q.y() + q.z() * q.z()));
+    }
+
+    void HoverYawCallback(const std_msgs::Float64::ConstPtr &msg) {
+        hover_pose_.head<3>() = odom_data_.p;
+        hover_pose_(3) = msg->data;
+        trajectory_data_.exec_traj = 0;
+        exec_traj_state_ = HOVER;
+        ROS_INFO("[MPCctrl] Hover yaw set to %.1f deg", msg->data * 180.0 / M_PI);
     }
 
     bool toggle_arm_disarm(bool arm)
@@ -450,6 +459,8 @@ public:
         odom_sub_ = nh.subscribe<nav_msgs::Odometry>("/some_object_name_vrpn_client/estimated_odometry", 10, &OMMPC_EXAMPLE::OdomCallback, this);
         imu_sub_ = nh.subscribe<sensor_msgs::Imu>("/mavros/imu/data", 10, &OMMPC_EXAMPLE::IMUCallback, this);
         state_sub_ = nh.subscribe<mavros_msgs::State>("/mavros/state", 10, &OMMPC_EXAMPLE::StateCallback, this);
+        hover_yaw_sub_ = nh.subscribe<std_msgs::Float64>("/drone_0_planning/hover_yaw", 1,
+                                        &OMMPC_EXAMPLE::HoverYawCallback, this);
         mpc_traj_sub_ = nh.subscribe<traj_utils::PolyTraj>("/drone_0_planning/trajectory",
                                         100,
                                         boost::bind(&Trajectory_Data_t::feed_from_traj_utils, &trajectory_data_, _1),
