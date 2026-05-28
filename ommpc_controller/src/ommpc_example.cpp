@@ -3,6 +3,7 @@
 #include <mavros_msgs/SetMode.h>
 #include <mavros_msgs/CommandBool.h>
 #include <mavros_msgs/AttitudeTarget.h>
+#include <std_msgs/Empty.h>
 #include <std_msgs/Float64.h>
 #include <dynamic_reconfigure/server.h>
 
@@ -24,7 +25,7 @@ enum Exec_Traj_State_t
 class OMMPC_EXAMPLE{
 private:
     ros::NodeHandle node_;
-    ros::Publisher cmd_pub_;
+    ros::Publisher cmd_pub_, takeoff_succeeded_pub_;
     ros::Subscriber odom_sub_, imu_sub_, state_sub_, mpc_traj_sub_, hover_yaw_sub_;
     ros::ServiceClient set_mode_client_, arming_client_srv_;
     ros::Timer exec_timer_, read_file_timer_;
@@ -293,6 +294,7 @@ private:
             {
                 exec_traj_state_ = HOVER;
                 set_hov_with_odom();
+                takeoff_succeeded_pub_.publish(std_msgs::Empty());
                 ROS_INFO("[MPCctrl] TAKEOFF succeeded. TAKEOFF --> HOVER");
             }
         }
@@ -454,6 +456,7 @@ public:
         exec_traj_state_ = HOVER;
 
         cmd_pub_ = nh.advertise<mavros_msgs::AttitudeTarget>("/mavros/setpoint_raw/attitude", 10);
+        takeoff_succeeded_pub_ = nh.advertise<std_msgs::Empty>("takeoff_succeeded", 1, true);
         set_mode_client_ = nh.serviceClient<mavros_msgs::SetMode>("mavros/set_mode");
         arming_client_srv_ = nh.serviceClient<mavros_msgs::CommandBool>("/mavros/cmd/arming");
         odom_sub_ = nh.subscribe<nav_msgs::Odometry>("/some_object_name_vrpn_client/estimated_odometry", 10, &OMMPC_EXAMPLE::OdomCallback, this);
