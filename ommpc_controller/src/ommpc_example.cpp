@@ -3,6 +3,7 @@
 #include <mavros_msgs/SetMode.h>
 #include <mavros_msgs/CommandBool.h>
 #include <mavros_msgs/AttitudeTarget.h>
+#include <geometry_msgs/PointStamped.h>
 #include <std_msgs/Empty.h>
 #include <std_msgs/Float64.h>
 #include <dynamic_reconfigure/server.h>
@@ -26,7 +27,7 @@ class OMMPC_EXAMPLE{
 private:
     ros::NodeHandle node_;
     ros::Publisher cmd_pub_, takeoff_succeeded_pub_;
-    ros::Subscriber odom_sub_, imu_sub_, state_sub_, mpc_traj_sub_, hover_yaw_sub_;
+    ros::Subscriber odom_sub_, imu_sub_, state_sub_, mpc_traj_sub_, hover_yaw_sub_, takeoff_position_sub_;
     ros::ServiceClient set_mode_client_, arming_client_srv_;
     ros::Timer exec_timer_, read_file_timer_;
     mavros_msgs::State state_;
@@ -43,6 +44,10 @@ private:
     double start_takeoff_land_time;
     bool enu_frame_, vel_in_body_;
     Eigen::Vector4d hover_pose_;
+    bool has_external_takeoff_position_ = false;
+    Eigen::Vector3d external_takeoff_position_;
+    Eigen::Vector3d takeoff_start_position_;
+    Eigen::Vector3d active_takeoff_position_;
 
     int line_cnt_ = 0, number_of_steps_ = 0;
     std::vector<std::vector<double>> test_trajectory_;
@@ -109,6 +114,35 @@ private:
         ROS_INFO("[MPCctrl] Hover yaw set to %.1f deg", msg->data * 180.0 / M_PI);
     }
 
+    void TakeoffPositionCallback(const geometry_msgs::PointStamped::ConstPtr &msg) {
+        external_takeoff_position_ = Eigen::Vector3d(
+            msg->point.x,
+            msg->point.y,
+            msg->point.z);
+        has_external_takeoff_position_ = true;
+        ROS_INFO("[MPCctrl] External takeoff position set to %.2f %.2f %.2f",
+                 external_takeoff_position_(0),
+                 external_takeoff_position_(1),
+                 external_takeoff_position_(2));
+    }
+
+    bool set_takeoff_reference_with_odom()
+    {
+        takeoff_start_position_ = odom_data_.p;
+        if (!has_external_takeoff_position_)
+        {
+            ROS_FATAL("[MPCctrl] takeoff_position was not received before takeoff.");
+            ros::shutdown();
+            return false;
+        }
+        active_takeoff_position_ = external_takeoff_position_;
+        ROS_INFO("[MPCctrl] Takeoff target locked to %.2f %.2f %.2f",
+                 active_takeoff_position_(0),
+                 active_takeoff_position_(1),
+                 active_takeoff_position_(2));
+        return true;
+    }
+
     bool toggle_arm_disarm(bool arm)
     {
         mavros_msgs::CommandBool arm_cmd;
@@ -145,9 +179,13 @@ private:
             if (takeoff_trigger_ && state_.mode == mavros_msgs::State::MODE_PX4_OFFBOARD)
             {
                 start_takeoff_land_time = ros::Time::now().toSec();
+                set_hov_with_odom();
+                if (!set_takeoff_reference_with_odom())
+                {
+                    return;
+                }
                 if (toggle_arm_disarm(true))
                 {
-                    set_hov_with_odom();
                     exec_traj_state_ = TAKEOFF;
                     ROS_INFO("[MPCctrl] Receive the trajectory. HOVER --> TAKEOFF");
                 }
@@ -173,7 +211,14 @@ private:
                 trajectory_data_.total_traj_start_time = traj_info->traj_start_time;
 
                 double traj_time = (now_time - traj_info->traj_start_time).toSec();
-                ommpc_controller_.setTrajectoryReference(traj_info->traj, traj_time, hover_pose_(3), traj_info->yaw_traj, odom_data_);
+                ommpc_controller_.setTrajectoryReference(
+                    traj_info->traj,
+                    traj_time,
+                    hover_pose_(3),
+                    traj_info->has_fixed_yaw,
+                    traj_info->fixed_yaw,
+                    traj_info->yaw_traj,
+                    odom_data_);
                 ret = ommpc_controller_.execMPC(odom_data_, u);
                 exec_traj_state_ = POLY_TRAJ;
                 ROS_INFO("[MPCctrl] Receive the trajectory. HOVER --> POLY_TRAJ");
@@ -250,7 +295,14 @@ private:
                         }
                     }
                     double traj_time = (now_time - traj_info->traj_start_time).toSec();
-                    ommpc_controller_.setTrajectoryReference(traj_info->traj, traj_time, hover_pose_(3), traj_info->yaw_traj, odom_data_);
+                    ommpc_controller_.setTrajectoryReference(
+                        traj_info->traj,
+                        traj_time,
+                        hover_pose_(3),
+                        traj_info->has_fixed_yaw,
+                        traj_info->fixed_yaw,
+                        traj_info->yaw_traj,
+                        odom_data_);
                     ret = ommpc_controller_.execMPC(odom_data_, u);
                 }
             }
@@ -275,22 +327,33 @@ private:
         case TAKEOFF:
         {
             takeoff_trigger_ = false;
+            const Eigen::Vector3d takeoff_delta = active_takeoff_position_ - takeoff_start_position_;
+            const double takeoff_distance = takeoff_delta.norm();
+            Eigen::Vector3d takeoff_direction = Eigen::Vector3d::Zero();
+            if (takeoff_distance > 1e-3)
+            {
+                takeoff_direction = takeoff_delta / takeoff_distance;
+            }
             for (int i = 0; i < nstep + 1; ++i)
             {
-                double altitude = std::min( 
-                    (ros::Time::now().toSec() - start_takeoff_land_time + i * param_.step_T) * param_.takeoff_land_speed, 
-                    param_.takeoff_height );
-                quad_positions_[i] = Eigen::Vector3d(
-                                    hover_pose_(0),
-                                    hover_pose_(1),
-                                    altitude);
-                quad_velocities_[i] = Eigen::Vector3d(0.0, 0.0, param_.takeoff_land_speed);
-                yaws_[i] = hover_pose_(4);
+                const double distance = std::min(
+                    (ros::Time::now().toSec() - start_takeoff_land_time + i * param_.step_T) * param_.takeoff_land_speed,
+                    takeoff_distance);
+                quad_positions_[i] = takeoff_start_position_ + takeoff_direction * distance;
+                if (distance < takeoff_distance)
+                {
+                    quad_velocities_[i] = takeoff_direction * param_.takeoff_land_speed;
+                }
+                else
+                {
+                    quad_velocities_[i] = Eigen::Vector3d::Zero();
+                }
+                yaws_[i] = hover_pose_(3);
             }
             double yaw_now = get_yaw_from_quaternion(odom_data_.q);
             ommpc_controller_.setTextReference(quad_positions_, quad_velocities_, odom_data_, yaw_now, yaws_);
             ret = ommpc_controller_.execMPC(odom_data_, u);
-            if (odom_data_.p(2) > param_.takeoff_height)
+            if ((odom_data_.p - active_takeoff_position_).norm() < 0.15)
             {
                 exec_traj_state_ = HOVER;
                 set_hov_with_odom();
@@ -316,7 +379,7 @@ private:
                                     hover_pose_(1),
                                     altitude);
                 quad_velocities_[i] = Eigen::Vector3d(0.0, 0.0, -param_.takeoff_land_speed);
-                yaws_[i] = hover_pose_(4);
+                yaws_[i] = hover_pose_(3);
             }
             double yaw_now = get_yaw_from_quaternion(odom_data_.q);
             ommpc_controller_.setTextReference(quad_positions_, quad_velocities_, odom_data_, yaw_now, yaws_);
@@ -464,6 +527,8 @@ public:
         state_sub_ = nh.subscribe<mavros_msgs::State>("/mavros/state", 10, &OMMPC_EXAMPLE::StateCallback, this);
         hover_yaw_sub_ = nh.subscribe<std_msgs::Float64>("/drone_0_planning/hover_yaw", 1,
                                         &OMMPC_EXAMPLE::HoverYawCallback, this);
+        takeoff_position_sub_ = nh.subscribe<geometry_msgs::PointStamped>("takeoff_position", 1,
+                                        &OMMPC_EXAMPLE::TakeoffPositionCallback, this);
         mpc_traj_sub_ = nh.subscribe<traj_utils::PolyTraj>("/drone_0_planning/trajectory",
                                         100,
                                         boost::bind(&Trajectory_Data_t::feed_from_traj_utils, &trajectory_data_, _1),
@@ -482,7 +547,6 @@ public:
         state_change_cb_type_ = boost::bind(&OMMPC_EXAMPLE::stateChangeCallback, this, _1, _2);
         state_change_server_.setCallback(state_change_cb_type_);
 
-        read_essential_param(nh, "takeoff_height", param_.takeoff_height);
         read_essential_param(nh, "takeoff_land_speed", param_.takeoff_land_speed);
         read_essential_param(nh, "ref_txt/enable", param_.use_ref_txt);
         read_essential_param(nh, "ref_txt/time_step", param_.ref_time_step);

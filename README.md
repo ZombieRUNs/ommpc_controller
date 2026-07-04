@@ -198,7 +198,7 @@ For more general conclusions, refer to [G. Lu, W. Xu and F. Zhang, "On-Manifold 
 There are three ways to set the reference trajectory and control inputs:
 - Set a hover reference. Related function: `setHoverReference`. This essentially sets the reference pose for the next several steps to the current pose and the velocity to 0.
 - Set the reference from a text trajectory. Related functions: `setTextReference`, `get_txt_des`. This function will also be used while setting references during takeoff and landing.
-- Set the reference from a polynomial trajectory. Related functions: `setTrajectoryReference`, `feed_from_traj_utils`. If it is necessary to read polynomial trajectories in other formats, you can implement them yourself.
+- Set the reference from a polynomial trajectory. Related functions: `setTrajectoryReference`, `feed_from_traj_utils`. `PolyTraj.has_yaw` and `PolyTraj.yaw` optionally request a fixed world-frame yaw for the whole trajectory; otherwise yaw is computed from the trajectory tangent. If it is necessary to read polynomial trajectories in other formats, you can implement them yourself.
 
 We adopt Hopf fibration to calculate the full state from the flat outputs.
 

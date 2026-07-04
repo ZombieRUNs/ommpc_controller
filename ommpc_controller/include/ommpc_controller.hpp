@@ -3,6 +3,7 @@
 #include <Eigen/Eigen>
 #include <osqp/osqp.h>
 #include <ros/ros.h>
+#include <cmath>
 #include <vector>
 #include <memory>
 
@@ -140,6 +141,8 @@ public:
   ros::Time traj_end_time{0};
   Trajectory traj;
   Trajectory yaw_traj;
+  bool has_fixed_yaw{false};
+  double fixed_yaw{0.0};
 };
 
 class Trajectory_Data_t
@@ -184,6 +187,8 @@ public:
       }
       oneTraj_Data_t traj_data;
       traj_data.traj_start_time = pMsg->start_time;
+      traj_data.has_fixed_yaw = traj.has_yaw && std::isfinite(traj.yaw);
+      traj_data.fixed_yaw = traj_data.has_fixed_yaw ? traj.yaw : 0.0;
       double t_total = 0;
 
       for (int i = 0; i < int(traj.duration.size()); ++i)
@@ -683,7 +688,7 @@ struct Parameter_t
 	double ref_time_step;
   bool enable_thrust_adaptation;
 
-  double takeoff_land_speed, takeoff_height;
+  double takeoff_land_speed;
 };
 
 class MpcController
@@ -1129,6 +1134,8 @@ public:
           const Trajectory &traj, 
           const double tstart, 
           const double start_yaw, 
+          const bool has_fixed_yaw,
+          const double fixed_yaw,
           const Trajectory &yaw_traj, 
           const Odom_Data_t &odom)
   {
@@ -1169,6 +1176,21 @@ public:
         {
             yaw = 0.0;  // yaw = start_yaw
             yaw_dot = 0.0;
+            if (i == 0)
+            {
+              last_yaw_ = yaw;
+              last_yaw_dot_ = 0.0;
+            }
+        }
+        else if (has_fixed_yaw)
+        {
+          yaw = angle_limit(fixed_yaw);
+          yaw_dot = 0.0;
+          if (i == 0)
+          {
+            last_yaw_ = yaw;
+            last_yaw_dot_ = 0.0;
+          }
         }
         else // directly compute from tangent line of traj
         {

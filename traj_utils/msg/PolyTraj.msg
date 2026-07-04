@@ -7,3 +7,6 @@ float32[] coef_x
 float32[] coef_y
 float32[] coef_z
 float32[] duration
+
+bool has_yaw
+float64 yaw
