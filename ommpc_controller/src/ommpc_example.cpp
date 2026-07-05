@@ -39,6 +39,7 @@ private:
     MpcController ommpc_controller_;
     
     bool is_command_mode_ = false;
+    bool publish_cmd_enabled_ = true;
     bool takeoff_enabled_ = false, last_takeoff_enabled_ = false, takeoff_trigger_ = false;
     bool land_enabled_ = false, last_land_enabled_ = false, land_trigger_ = false;
     double start_takeoff_land_time;
@@ -74,6 +75,7 @@ private:
         last_takeoff_enabled_ = takeoff_enabled_;
         land_enabled_ = config.land_enabled;
         is_command_mode_ = config.command_or_hover;
+        publish_cmd_enabled_ = config.publish_cmd_enabled;
         takeoff_enabled_ = config.takeoff_enabled;
         if (last_takeoff_enabled_ == false && takeoff_enabled_ == true)
         {
@@ -86,6 +88,11 @@ private:
     }
 
     void send_cmd(const Controller_Output_t &output){
+        if (!publish_cmd_enabled_)
+        {
+            ROS_INFO_THROTTLE(1.0, "[MPCctrl] MPC command publishing disabled.");
+            return;
+        }
         mavros_msgs::AttitudeTarget cmd;
         cmd.header.stamp = ros::Time::now();
         cmd.body_rate.x = output.bodyrates(0);
