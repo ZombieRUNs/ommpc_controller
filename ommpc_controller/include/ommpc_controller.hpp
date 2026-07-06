@@ -179,7 +179,7 @@ public:
 
     if (traj.order >= 3)
     {
-      ROS_WARN("[MPCCtrl] Loading the trajectory.");
+      // ROS_WARN("[MPCCtrl] Loading the trajectory.");
       if (traj.traj_id < 1)
       {
         ROS_ERROR("[MPCCtrl] The trajectory_id must start from 1");
