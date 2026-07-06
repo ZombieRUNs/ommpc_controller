@@ -46,6 +46,8 @@ private:
     bool enu_frame_, vel_in_body_;
     Eigen::Vector4d hover_pose_;
     bool has_external_takeoff_position_ = false;
+    bool has_external_hover_yaw_ = false;
+    double external_hover_yaw_ = 0.0;
     Eigen::Vector3d external_takeoff_position_;
     Eigen::Vector3d takeoff_start_position_;
     Eigen::Vector3d active_takeoff_position_;
@@ -106,7 +108,7 @@ private:
     void set_hov_with_odom()
     {
         hover_pose_.head<3>() = odom_data_.p;
-        hover_pose_(3) = get_yaw_from_quaternion(odom_data_.q);
+        hover_pose_(3) = has_external_hover_yaw_ ? external_hover_yaw_ : get_yaw_from_quaternion(odom_data_.q);
     }
 
     double get_yaw_from_quaternion(const Eigen::Quaterniond& q) {
@@ -114,8 +116,10 @@ private:
     }
 
     void HoverYawCallback(const std_msgs::Float64::ConstPtr &msg) {
+        has_external_hover_yaw_ = true;
+        external_hover_yaw_ = msg->data;
         hover_pose_.head<3>() = odom_data_.p;
-        hover_pose_(3) = msg->data;
+        hover_pose_(3) = external_hover_yaw_;
         trajectory_data_.exec_traj = 0;
         exec_traj_state_ = HOVER;
         ROS_INFO("[MPCctrl] Hover yaw set to %.1f deg", msg->data * 180.0 / M_PI);
