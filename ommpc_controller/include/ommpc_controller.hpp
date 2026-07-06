@@ -1036,7 +1036,8 @@ public:
                                   const std::vector<Eigen::Vector3d> &quad_velocities,
                                   const Odom_Data_t &odom, 
                                   const double start_yaw,
-                                  const std::vector<double> &yaws)
+                                  const std::vector<double> &yaws,
+                                  const bool use_yaws = false)
   {
     if (quad_positions.size() != nstep + 1 || yaws.size() != nstep + 1 || quad_velocities.size() != nstep + 1)
       ROS_ERROR("Read reference Error!!");
@@ -1082,6 +1083,11 @@ public:
           yaw = 0.0;
           yaw_dot = 0.0;
       }
+      else if (use_yaws)
+      {
+        yaw = angle_limit(yaws.at(i));
+        yaw_dot = 0.0;
+      }
       else  // directly compute from tangent line of traj
       {
         if (i == 0) // reset last_yaw_
@@ -1095,11 +1101,6 @@ public:
         }
         // std::cout << yaw << " " << yaw_dot << std::endl;
       }
-      // else  // use yaw from txt
-      // {
-      //   yaw = yaws.at(i);
-      //   yaw_dot = 0.0;
-      // }
       // des_acc, des_jerk, des_yaw, des_yawdot, des_q (assign to q when fail to calculate proper q), out_q, out_omg
       // if there's significant discontinuous in the txt traj (especially at the end of it), don't use jerk!
       computeFlatInputwithHopfFibration(des_acc_in_world, Eigen::Vector3d::Zero(), yaw, yaw_dot, last_q, q, omg);

@@ -362,7 +362,7 @@ private:
                 yaws_[i] = hover_pose_(3);
             }
             double yaw_now = get_yaw_from_quaternion(odom_data_.q);
-            ommpc_controller_.setTextReference(quad_positions_, quad_velocities_, odom_data_, yaw_now, yaws_);
+            ommpc_controller_.setTextReference(quad_positions_, quad_velocities_, odom_data_, yaw_now, yaws_, true);
             ret = ommpc_controller_.execMPC(odom_data_, u);
             if ((odom_data_.p - active_takeoff_position_).norm() < 0.15)
             {
@@ -393,7 +393,7 @@ private:
                 yaws_[i] = hover_pose_(3);
             }
             double yaw_now = get_yaw_from_quaternion(odom_data_.q);
-            ommpc_controller_.setTextReference(quad_positions_, quad_velocities_, odom_data_, yaw_now, yaws_);
+            ommpc_controller_.setTextReference(quad_positions_, quad_velocities_, odom_data_, yaw_now, yaws_, true);
             ret = ommpc_controller_.execMPC(odom_data_, u);
             static double last_trial_time = 0; // Avoid too frequent calls
             if (odom_data_.v.norm() < 0.1 && altitude < -0.4)
