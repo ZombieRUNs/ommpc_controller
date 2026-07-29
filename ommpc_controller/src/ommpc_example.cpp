@@ -222,10 +222,11 @@ private:
                 trajectory_data_.total_traj_start_time = traj_info->traj_start_time;
 
                 double traj_time = (now_time - traj_info->traj_start_time).toSec();
+                double yaw_now = get_yaw_from_quaternion(odom_data_.q);
                 ommpc_controller_.setTrajectoryReference(
                     traj_info->traj,
                     traj_time,
-                    hover_pose_(3),
+                    yaw_now,
                     traj_info->has_fixed_yaw,
                     traj_info->fixed_yaw,
                     traj_info->yaw_traj,
@@ -306,10 +307,11 @@ private:
                         }
                     }
                     double traj_time = (now_time - traj_info->traj_start_time).toSec();
+                    double yaw_now = get_yaw_from_quaternion(odom_data_.q);
                     ommpc_controller_.setTrajectoryReference(
                         traj_info->traj,
                         traj_time,
-                        hover_pose_(3),
+                        yaw_now,
                         traj_info->has_fixed_yaw,
                         traj_info->fixed_yaw,
                         traj_info->yaw_traj,
