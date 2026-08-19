@@ -10,6 +10,7 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import rospy
+from mavros_msgs.msg import AttitudeTarget
 from nav_msgs.msg import Odometry
 from traj_utils.msg import PolyTraj
 
@@ -120,6 +121,7 @@ class CompareRecorder:
     def __init__(self, msg):
         self.msg = msg
         self.odom_topic = rospy.get_param("~odom_topic", "/some_object_name_vrpn_client/estimated_odometry")
+        self.command_topic = rospy.get_param("~command_topic", "/mavros/setpoint_raw/attitude")
         self.output_root = rospy.get_param("~output_root", "/tmp/ommpc_poly_compare")
         self.ref_sample_dt = float(rospy.get_param("~ref_sample_dt", 0.02))
         self.max_follow_time = float(rospy.get_param("~max_follow_time", 30.0))
@@ -130,8 +132,10 @@ class CompareRecorder:
         self.stop_time = None
         self.recording = False
         self.saved = False
+        self.latest_command = None
 
         rospy.Subscriber(self.odom_topic, Odometry, self._odom_cb, queue_size=200)
+        rospy.Subscriber(self.command_topic, AttitudeTarget, self._command_cb, queue_size=200)
         rospy.on_shutdown(self.save)
 
         self._build_ref_samples()
@@ -144,6 +148,14 @@ class CompareRecorder:
             "[poly_traj_test_pub] Compare logger enabled. odom=%s total_dur=%.2f",
             self.odom_topic,
             total_dur,
+        )
+
+    def _command_cb(self, command):
+        self.latest_command = (
+            command.body_rate.x,
+            command.body_rate.y,
+            command.body_rate.z,
+            command.thrust,
         )
 
     @staticmethod
@@ -212,7 +224,19 @@ class CompareRecorder:
         if ref_xyz is None:
             return
         p = odom.pose.pose.position
-        self.actual_samples.append([rel_t, ref_xyz[0], ref_xyz[1], ref_xyz[2], p.x, p.y, p.z])
+        v = odom.twist.twist.linear
+        q = odom.pose.pose.orientation
+        w = odom.twist.twist.angular
+        command = self.latest_command or (float("nan"),) * 4
+        self.actual_samples.append([
+            rel_t,
+            ref_xyz[0], ref_xyz[1], ref_xyz[2],
+            p.x, p.y, p.z,
+            v.x, v.y, v.z,
+            q.x, q.y, q.z, q.w,
+            w.x, w.y, w.z,
+            *command,
+        ])
 
     def _write_csv(self, path, header, rows):
         with open(path, "w", newline="") as f:
@@ -287,7 +311,14 @@ class CompareRecorder:
         if self.actual_samples:
             self._write_csv(
                 cmp_csv,
-                ["t_s", "ref_x", "ref_y", "ref_z", "actual_x", "actual_y", "actual_z"],
+                [
+                    "t_s", "ref_x", "ref_y", "ref_z",
+                    "actual_x", "actual_y", "actual_z",
+                    "actual_vx", "actual_vy", "actual_vz",
+                    "actual_qx", "actual_qy", "actual_qz", "actual_qw",
+                    "actual_wx", "actual_wy", "actual_wz",
+                    "command_wx", "command_wy", "command_wz", "command_throttle",
+                ],
                 self.actual_samples,
             )
             self._plot(fig_png)
@@ -296,6 +327,10 @@ class CompareRecorder:
 
 def main():
     rospy.init_node("poly_traj_test_pub")
+
+    if rospy.get_param("/use_sim_time", False):
+        while not rospy.is_shutdown() and rospy.Time.now().is_zero():
+            rospy.sleep(0.01)
 
     topic = rospy.get_param("~topic", "/drone_0_planning/trajectory")
     start_delay = rospy.get_param("~start_delay", 0.5)
