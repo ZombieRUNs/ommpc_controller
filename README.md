@@ -28,14 +28,6 @@ Also, the control performance is not yet optimal, so if anyone is interested in 
 
 **TODO: add parameters of rotor drag**
 
-Simulation with Gazebo and EGO-Planner-V2:
-
-![Simulation with Gazebo and EGO-Planner-V2](misc/simu_with_ego.gif)
-
-Error analysis of realworld experiment with a Fast-Drone-250 quadrotor:
-
-![Error analysis of realworld experiment with a Fast-Drone-250 quadrotor](misc/real_flight.png)
-
 ## Usage
 
 ### Prerequisites
@@ -190,8 +182,6 @@ ref_txt:
 &emsp; ref_filename: The path to the text trajectory file, specified as a **relative path** relative to this project.
 
 ### Theory and parameters
-
-For the derivation with respect to the dynamic of quadrotors, refer to the file `OMMPC_derivation.pdf` in this repo.
 
 For more general conclusions, refer to [G. Lu, W. Xu and F. Zhang, "On-Manifold Model Predictive Control for Trajectory Tracking on Robotic Systems," in IEEE Transactions on Industrial Electronics, vol. 70, no. 9, pp. 9192-9202, Sept. 2023](https://ieeexplore.ieee.org/abstract/document/9917382).
 
