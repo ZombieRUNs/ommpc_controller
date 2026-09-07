@@ -48,3 +48,11 @@ target_link_libraries(${PROJECT_NAME}_example_node
   ${catkin_LIBRARIES}
   osqp
 )
+
+if(CATKIN_ENABLE_TESTING)
+  catkin_add_gtest(test_odom_data tests/test_odom_data.cpp)
+  if(TARGET test_odom_data)
+    add_dependencies(test_odom_data ${catkin_EXPORTED_TARGETS})
+    target_link_libraries(test_odom_data ${catkin_LIBRARIES} osqp)
+  endif()
+endif()

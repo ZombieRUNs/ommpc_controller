@@ -1,3 +1,9 @@
+# Pose must be world ENU with a body-FLU-to-ENU quaternion.
+odom_topic: /mavros/local_position/odom
+# MAVROS twist is body FLU; rotate linear velocity to ENU using the pose.
+# Set false only for an odometry source that already supplies world-ENU velocity.
+vel_in_body: true
+
 takeoff_land_speed: 0.5
 
 ref_txt:

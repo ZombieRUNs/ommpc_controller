@@ -527,15 +527,17 @@ public:
     ~OMMPC_EXAMPLE(){};
     void init(ros::NodeHandle &nh){
         enu_frame_ = true;
-        // for real world flight, vel_in_body should be set to false!
-        vel_in_body_ = false;
+        // MAVROS odometry has ENU pose and body-FLU linear velocity.
+        nh.param("vel_in_body", vel_in_body_, true);
+        std::string odom_topic;
+        nh.param<std::string>("odom_topic", odom_topic, "/mavros/local_position/odom");
         exec_traj_state_ = HOVER;
 
         cmd_pub_ = nh.advertise<mavros_msgs::AttitudeTarget>("/mavros/setpoint_raw/attitude", 10);
         takeoff_succeeded_pub_ = nh.advertise<std_msgs::Empty>("takeoff_succeeded", 1, true);
         set_mode_client_ = nh.serviceClient<mavros_msgs::SetMode>("mavros/set_mode");
         arming_client_srv_ = nh.serviceClient<mavros_msgs::CommandBool>("/mavros/cmd/arming");
-        odom_sub_ = nh.subscribe<nav_msgs::Odometry>("/some_object_name_vrpn_client/estimated_odometry", 10, &OMMPC_EXAMPLE::OdomCallback, this);
+        odom_sub_ = nh.subscribe<nav_msgs::Odometry>(odom_topic, 10, &OMMPC_EXAMPLE::OdomCallback, this);
         imu_sub_ = nh.subscribe<sensor_msgs::Imu>("/mavros/imu/data", 10, &OMMPC_EXAMPLE::IMUCallback, this);
         state_sub_ = nh.subscribe<mavros_msgs::State>("/mavros/state", 10, &OMMPC_EXAMPLE::StateCallback, this);
         hover_yaw_sub_ = nh.subscribe<std_msgs::Float64>("/drone_0_planning/hover_yaw", 1,
